@@ -239,9 +239,6 @@ function periodDisplayLabel(p) {
 const STORAGE_KEYS = [
   { key: "home2", label: "家(モード2) 貯蔵", unit: "min" },
   { key: "kaikatsu2", label: "快活クラブ(モード2) 貯蔵", unit: "min" },
-  { key: "share2_count", label: "SHARE LOUNGE(モード2) 回数", unit: "count" },
-  { key: "study_mins", label: "勉強 合計時間", unit: "min" },
-  { key: "work_mins", label: "仕事 合計時間", unit: "min" },
 ];
 
 // アクティブな期間から特定storageKeyにタグ付けされたルールを収集
