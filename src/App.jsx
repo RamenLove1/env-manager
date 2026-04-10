@@ -5,18 +5,18 @@ import { useState, useEffect } from "react";
 // =============================================
 const ENVIRONMENTS = [
   { id: "home1", label: "家(モード1)", icon: "🏠", cost: "0円", hours: "いつでも", access: "家",
-    permitted: ["仕事", "運動", "家事"],
+    permitted: ["仕事"],
     gray: ["仕事"],
     notes: "スマホで開いて良いのはGoogle、Spotify、Slack、ドキュメント、スプレッドシートのみ。\n外出が必要ならば、外出後のことについて考えてはいけない。\nオフィスに行けないが仕事が必要な時にのみ、仕事をして良い。",
-    担当: "仕事(必要時)、運動、家事" },
+    担当: "仕事(必要時)" },
   { id: "home2", label: "家(モード2)", icon: "🏠", cost: "0円", hours: "いつでも", access: "家",
-    permitted: ["運動", "家事", "趣味", "ゲーム"],
+    permitted: ["趣味", "ゲーム"],
     gray: [],
     notes: "特になし",
-    担当: "運動、家事、趣味、ゲーム" },
+    担当: "趣味、ゲーム" },
   { id: "home3", label: "家(モード3)", icon: "🏠", cost: "0円", hours: "いつでも", access: "家",
-    permitted: ["勉強", "仕事", "運動", "家事", "趣味", "ゲーム", "漫画", "Youtube"],
-    gray: ["勉強", "仕事", "運動", "家事"],
+    permitted: ["勉強", "仕事", "趣味", "ゲーム", "漫画", "Youtube"],
+    gray: ["勉強", "仕事"],
     notes: "風邪をひいているときにのみ許可。かつその時は常に許可する。",
     担当: "療養" },
   { id: "outside", label: "外", icon: "🚶", cost: "0円", hours: "移動時、外食時等", access: "0秒",
@@ -72,15 +72,15 @@ const ENVIRONMENTS = [
     notes: "1日1時間まで。漫画は1巻まで。\n月間利用料目安：10000円",
     担当: "外出誘発漫画" },
   { id: "jikka1", label: "実家系(モード1)", icon: "🏡", cost: "0円", hours: "帰省時", access: "帰省時",
-    permitted: ["勉強", "仕事", "運動", "家事"],
+    permitted: ["勉強", "仕事"],
     gray: [],
     notes: "特になし",
-    担当: "勉強、仕事、運動、家事" },
+    担当: "勉強、仕事" },
   { id: "jikka2", label: "実家系(モード2)", icon: "🏡", cost: "0円", hours: "帰省時", access: "帰省時",
-    permitted: ["勉強", "仕事", "運動", "家事", "趣味", "ゲーム", "漫画"],
+    permitted: ["勉強", "仕事", "趣味", "ゲーム", "漫画"],
     gray: [],
     notes: "家(モード2)の貯蔵を使用する。",
-    担当: "勉強、仕事、運動、家事、趣味、リラックス" },
+    担当: "勉強、仕事、趣味、リラックス" },
 ];
 
 const PLACES = [
@@ -115,7 +115,7 @@ const BASIC_RULES = [
   R("制御規定では、外出誘発ができなくなるようなものを追加してはいけない"),
   R("制御規定では、「テストで100点とる」など、成功を条件にしてはいけない。「勉強を10時間やる」など、やることそのものを条件にする。"),
   R("違反判定の方法として、「これ違反じゃない？」と思った瞬間にやめるかChatGPTで判別し、違反だと分かった次の瞬間にもそれを続けていたら違反とする。違反の判別をしなかった場合も違反とする。"),
-  R("【計測外（12h）】睡眠7h / 食事1h30m / 移動1h / 外出準備30m / 健康習慣30m / コミュニケーション30m / ロス1h"),
+  R("【計測外（13h）】睡眠7h / 食事1h30m / 移動1h / 運動30m / 家事30m / 外出準備30m / 健康習慣30m / コミュニケーション30m / ロス1h"),
 ];
 
 const VIOLATION_RULES = [
@@ -134,7 +134,7 @@ const RESET_RULES = [
 const DEFAULT_PERIOD_RULES = [
   {
     id: 1, label: "初週", startDate: "2026-04-06", endDate: "2026-04-12",
-    guidelines: { "勉強": "5h", "仕事": "3h", "運動": "30m", "家事": "30m", "趣味": "2h", "リラックス": "1h" },
+    guidelines: { "勉強": "5h", "仕事": "2h30m", "趣味": "2h", "リラックス": "1h30m" },
     choices: [
       "大学(モード1)で勉強",
       "オフィスで仕事",
@@ -143,16 +143,16 @@ const DEFAULT_PERIOD_RULES = [
       "SHARE LOUNGE(モード1)で勉強",
     ],
     rules: [
-      { text: "1h勉強または仕事をするごとに、家(モード2)の許可を10m貯蔵できる。", envIds: ["home2"], storageTag: "home2" },
-      { text: "2h勉強または仕事をするごとに、0時までに就寝するごとに、快活クラブ(モード2)の許可を10m貯蔵できる。", envIds: ["kaikatsu2"], storageTag: "kaikatsu2" },
-      R("その日の大学の授業をすべて受けて帰ってきて、家(モード2)の許可が3h以上あれば、それを使用できる。", ["univ1","univ2","home2"]),
+      { text: "1h勉強または仕事をするごとに、0時までに就寝するごとに、家(モード2)の許可を10m貯蔵できる。", envIds: ["home2"], storageTag: "home2" },
+      { text: "1h勉強または仕事をするごとに、快活クラブ(モード2)の許可を10m貯蔵できる。", envIds: ["kaikatsu2"], storageTag: "kaikatsu2" },
+      R("その日の大学の授業をすべて受けて帰ってきて、家(モード2)の許可が2h以上あれば、それを使用できる。", ["univ1","univ2","home2"]),
       R("大学(モード2)は許可しない。", ["univ2"]),
       R("SHARE LOUNGE(モード2)は月に一度まで。", ["share2"]),
-      R("9時より前に外での用事がある場合、快活クラブ(モード3)を外出誘発用に許可する。", ["kaikatsu3"]),
+      R("10時までに外での用事がある場合、快活クラブ(モード3)を外出誘発用に許可する。", ["kaikatsu3"]),
     ],
     effects: [
-      { envId: "home2", type: "storage_threshold", storageKey: "home2", threshold: 180, label: "家(モード2)貯蔵 3h以上で開始可能" },
-      { envId: "jikka2", type: "storage_threshold", storageKey: "home2", threshold: 180, label: "家(モード2)貯蔵 3h以上で開始可能" },
+      { envId: "home2", type: "storage_threshold", storageKey: "home2", threshold: 120, label: "家(モード2)貯蔵 2h以上で開始可能" },
+      { envId: "jikka2", type: "storage_threshold", storageKey: "home2", threshold: 120, label: "家(モード2)貯蔵 2h以上で開始可能" },
       { envId: "kaikatsu2", type: "storage_threshold", storageKey: "kaikatsu2", threshold: 1, label: "快活クラブ(モード2)貯蔵 1m以上で開始可能" },
       { envId: "univ2", type: "denied" },
       { envId: "share2", type: "count_limit", storageKey: "share2_count", limit: 1, label: "SHARE LOUNGE(モード2)回数 1回まで" },
@@ -192,10 +192,10 @@ const DEFAULT_DYN = {
 };
 
 function loadDyn() {
-  try { const r = localStorage.getItem("env-mgr-dyn-v8"); return r ? JSON.parse(r) : null; } catch { return null; }
+  try { const r = localStorage.getItem("env-mgr-dyn-v9"); return r ? JSON.parse(r) : null; } catch { return null; }
 }
 function saveDyn(d) {
-  try { localStorage.setItem("env-mgr-dyn-v8", JSON.stringify(d)); } catch {}
+  try { localStorage.setItem("env-mgr-dyn-v9", JSON.stringify(d)); } catch {}
 }
 
 // =============================================
@@ -567,7 +567,7 @@ function HomeTab({ dyn, setDyn }) {
               <thead>
                 <tr>
                   <th style={{ padding: "6px 8px", borderBottom: `1px solid ${C.border}`, position: "sticky", left: 0, background: C.card, zIndex: 1, fontWeight: 600, textAlign: "left", minWidth: 100 }}>環境</th>
-                  {["勉強","仕事","運動","家事","趣味","ゲーム","漫画","YT"].map(a => (
+                  {["勉強","仕事","趣味","ゲーム","漫画","YT"].map(a => (
                     <th key={a} style={{ padding: "6px 4px", borderBottom: `1px solid ${C.border}`, fontWeight: 600, textAlign: "center", minWidth: 36 }}>{a}</th>
                   ))}
                 </tr>
@@ -576,7 +576,7 @@ function HomeTab({ dyn, setDyn }) {
                 {ENVIRONMENTS.map(env => (
                   <tr key={env.id}>
                     <td style={{ padding: "5px 8px", borderBottom: `1px solid ${C.border}`, position: "sticky", left: 0, background: C.card, zIndex: 1, fontWeight: 500, whiteSpace: "nowrap" }}>{env.label}</td>
-                    {["勉強","仕事","運動","家事","趣味","ゲーム","漫画","Youtube"].map(a => {
+                    {["勉強","仕事","趣味","ゲーム","漫画","Youtube"].map(a => {
                       const isPermitted = env.permitted.includes(a);
                       const isGray = (env.gray || []).includes(a);
                       return (
@@ -1263,7 +1263,7 @@ function RulesTab({ dyn, setDyn }) {
   const addPeriod = (copyFrom) => {
     const base = copyFrom
       ? { ...JSON.parse(JSON.stringify(copyFrom)), id: Date.now(), label: copyFrom.label + "（コピー）", startDate: "", endDate: "" }
-      : { id: Date.now(), label: "新しい期間", startDate: "", endDate: "", guidelines: { "勉強": "5h", "仕事": "3h", "運動": "30m", "家事": "30m", "趣味": "2h", "リラックス": "1h" }, choices: [], rules: [], effects: [] };
+      : { id: Date.now(), label: "新しい期間", startDate: "", endDate: "", guidelines: { "勉強": "5h", "仕事": "2h30m", "趣味": "2h", "リラックス": "1h30m" }, choices: [], rules: [], effects: [] };
     const n = { ...dyn, periodRules: [...dyn.periodRules, base] }; setDyn(n); saveDyn(n);
   };
   const [showAddPeriod, setShowAddPeriod] = useState(false);
