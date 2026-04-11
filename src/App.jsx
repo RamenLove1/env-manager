@@ -616,7 +616,7 @@ function TimeCard({ id, label, color, steps, mins, onAdjust, editTarget, amount,
         </div>
       )}
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-        {steps.map(s => <button key={s} style={{ ...S.btnOutline, flex: 1 }} onClick={() => onAdjust(id, s)}>{s > 0 ? "+" : ""}{s >= 60 ? `${s/60}h` : `${s}m`}</button>)}
+        {steps.map(s => <button key={s} style={{ ...S.btnOutline, flex: 1 }} onClick={() => onAdjust(id, s)}>{s > 0 ? "+" : ""}{Math.abs(s) >= 60 ? `${s/60}h` : `${s}m`}</button>)}
       </div>
       {editTarget === id ? (
         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -645,11 +645,11 @@ function StorageTab({ dyn, setDyn }) {
     <div>
       <div style={S.header}>記録・貯蔵管理</div>
       <div style={S.section}>活動記録</div>
-      <TimeCard id="study_mins" label="勉強 合計時間" color={C.accent} steps={[-30, 30, 60]} mins={st.study_mins || 0} storageRules={collectStorageRules(dyn, "study_mins")} {...tcProps} />
-      <TimeCard id="work_mins" label="仕事 合計時間" color={C.accent} steps={[-30, 30, 60]} mins={st.work_mins || 0} storageRules={collectStorageRules(dyn, "work_mins")} {...tcProps} />
+      <TimeCard id="study_mins" label="勉強 合計時間" color={C.accent} steps={[-60, -10, 10, 60]} mins={st.study_mins || 0} storageRules={collectStorageRules(dyn, "study_mins")} {...tcProps} />
+      <TimeCard id="work_mins" label="仕事 合計時間" color={C.accent} steps={[-60, -10, 10, 60]} mins={st.work_mins || 0} storageRules={collectStorageRules(dyn, "work_mins")} {...tcProps} />
       <div style={S.section}>貯蔵ポイント</div>
-      <TimeCard id="home2" label="家(モード2) 貯蔵" color={C.green} steps={[-10, 10, 60]} mins={st.home2 || 0} storageRules={collectStorageRules(dyn, "home2")} {...tcProps} />
-      <TimeCard id="kaikatsu2" label="快活クラブ(モード2) 貯蔵" color={C.green} steps={[-10, 10, 60]} mins={st.kaikatsu2 || 0} storageRules={collectStorageRules(dyn, "kaikatsu2")} {...tcProps} />
+      <TimeCard id="home2" label="家(モード2) 貯蔵" color={C.green} steps={[-60, -10, 10, 60]} mins={st.home2 || 0} storageRules={collectStorageRules(dyn, "home2")} {...tcProps} />
+      <TimeCard id="kaikatsu2" label="快活クラブ(モード2) 貯蔵" color={C.green} steps={[-60, -10, 10, 60]} mins={st.kaikatsu2 || 0} storageRules={collectStorageRules(dyn, "kaikatsu2")} {...tcProps} />
       <div style={S.section}>利用回数</div>
       <div style={S.card}>
         <div style={{ fontWeight: 600, marginBottom: 8 }}>SHARE LOUNGE(モード2) 使用回数</div>
