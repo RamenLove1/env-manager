@@ -531,7 +531,7 @@ function HomeTab({ dyn, setDyn }) {
                   <div style={{ marginTop: 6 }}>{env.permitted.map(a => <span key={a} style={{ ...S.permitted, ...(graySet.has(a) ? { background: C.yellowDim, color: C.yellow } : {}) }}>{a}</span>)}</div>
                   {env.担当 && <div style={{ color: C.yellow, fontSize: 11, marginTop: 4 }}>担当: {env.担当}</div>}
                   {envEffects.map((eff, ei) => <EffectBadge key={ei} effect={eff} />)}
-                  {env.notes && env.notes !== "特になし" && <div style={{ color: C.textDim, fontSize: 11, marginTop: 4, whiteSpace: "pre-line" }}>{env.notes}</div>}
+                  {env.notes && env.notes !== "特になし" && (() => { const filtered = env.notes.split("\n").filter(l => !l.startsWith("推定努力密度") && !l.startsWith("月間利用料目安")).join("\n").trim(); return filtered ? <div style={{ color: C.textDim, fontSize: 11, marginTop: 4, whiteSpace: "pre-line" }}>{filtered}</div> : null; })()}
                   {banned && <div style={{ color: C.red, fontSize: 11, marginTop: 4 }}>🚫 {fmtDate(banEnd)}まで使用禁止</div>}
                   {isAct && <div style={{ color: C.accent, fontSize: 11, marginTop: 4 }}>● 現在地</div>}
                 </button>
