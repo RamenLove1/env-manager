@@ -202,6 +202,7 @@ const RULE_SECTIONS = [
 // =============================================
 const DEFAULT_DYN = {
   currentEnv: null, violations: [], storage: {},
+  streak: 0, streakRewards: [],
   periodRules: DEFAULT_PERIOD_RULES,
   controlRules: DEFAULT_CONTROL_RULES,
 };
@@ -682,6 +683,74 @@ function StorageTab({ dyn, setDyn }) {
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
           <button style={{ ...S.btnOutline, flex: 1 }} onClick={() => adjust("share2_count", -1)}>-1</button>
           <button style={{ ...S.btnOutline, flex: 1 }} onClick={() => adjust("share2_count", 1)}>+1</button>
+        </div>
+      </div>
+
+      <div style={S.section}>無違反連続日数</div>
+      <StreakCard dyn={dyn} setDyn={setDyn} />
+    </div>
+  );
+}
+
+function StreakCard({ dyn, setDyn }) {
+  const [editDays, setEditDays] = useState(false);
+  const [daysInput, setDaysInput] = useState("");
+  const [newDays, setNewDays] = useState("");
+  const [newReward, setNewReward] = useState("");
+  const [confirmDel, setConfirmDel] = useState(null);
+  const streak = dyn.streak || 0;
+  const rewards = dyn.streakRewards || [];
+  const save = (n) => { setDyn(n); saveDyn(n); };
+  const adjust = (d) => save({ ...dyn, streak: Math.max(0, streak + d) });
+  const setDirect = () => { const v = parseInt(daysInput); if (isNaN(v)) return; save({ ...dyn, streak: Math.max(0, v) }); setEditDays(false); setDaysInput(""); };
+  const addReward = () => { if (!newDays.trim() || !newReward.trim()) return; const d = parseInt(newDays); if (isNaN(d) || d <= 0) return; save({ ...dyn, streakRewards: [...rewards, { days: d, reward: newReward.trim() }].sort((a, b) => a.days - b.days) }); setNewDays(""); setNewReward(""); };
+  const delReward = (i) => { save({ ...dyn, streakRewards: rewards.filter((_, j) => j !== i) }); setConfirmDel(null); };
+
+  const nextReward = rewards.find(r => r.days > streak);
+
+  return (
+    <div style={S.card}>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>🔥 無違反連続日数</div>
+      <div style={{ fontSize: 28, fontWeight: 700, color: streak > 0 ? C.accent : C.textDim }}>{streak}日</div>
+      {nextReward && <div style={{ fontSize: 11, color: C.yellow, marginTop: 4 }}>次の報酬まであと {nextReward.days - streak}日（{nextReward.days}日目: {nextReward.reward}）</div>}
+      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        <button style={{ ...S.btnOutline, flex: 1 }} onClick={() => adjust(-1)}>-1</button>
+        <button style={{ ...S.btnOutline, flex: 1 }} onClick={() => adjust(1)}>+1</button>
+      </div>
+      {editDays ? (
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <input style={{ ...S.input, flex: 1 }} type="number" placeholder="日数" value={daysInput} onChange={e => setDaysInput(e.target.value)} />
+          <button style={S.btnOutline} onClick={setDirect}>設定</button>
+          <button style={{ ...S.btnOutline, color: C.textDim, borderColor: C.textDim }} onClick={() => setEditDays(false)}>×</button>
+        </div>
+      ) : <button style={{ ...S.btnOutline, marginTop: 8, width: "100%", textAlign: "center" }} onClick={() => { setEditDays(true); setDaysInput(String(streak)); }}>直接入力</button>}
+
+      <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 12, paddingTop: 10 }}>
+        <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>🎁 報酬設定</div>
+        {rewards.length > 0 ? rewards.map((r, i) => (
+          <div key={i} style={{ padding: "6px 0", borderBottom: i < rewards.length - 1 ? `1px solid ${C.border}` : "none" }}>
+            {confirmDel === i ? (
+              <div style={{ background: C.redDim, borderRadius: 8, padding: "10px 12px" }}>
+                <div style={{ fontSize: 12, color: C.red, marginBottom: 8 }}>この報酬を削除しますか？</div>
+                <div style={{ fontSize: 11, color: C.textDim, marginBottom: 8 }}>「{r.days}日目: {r.reward}」</div>
+                <div style={{ display: "flex", gap: 8 }}><button style={S.btnSm(C.red)} onClick={() => delReward(i)}>削除する</button><button style={S.btnSm(C.textDim)} onClick={() => setConfirmDel(null)}>やめる</button></div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontSize: 12 }}>
+                  <span style={{ color: r.days <= streak ? C.green : C.accent, fontWeight: 600 }}>{r.days}日目</span>
+                  <span style={{ color: C.text, marginLeft: 8 }}>{r.reward}</span>
+                  {r.days <= streak && <span style={{ color: C.green, marginLeft: 6, fontSize: 10 }}>✓達成</span>}
+                </div>
+                <button style={{ background: "none", border: "none", color: C.textDim, cursor: "pointer", fontSize: 13 }} onClick={() => setConfirmDel(i)}>×</button>
+              </div>
+            )}
+          </div>
+        )) : <div style={{ fontSize: 11, color: C.textDim }}>報酬が未設定です</div>}
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <input style={{ ...S.input, width: 60 }} type="number" placeholder="日数" value={newDays} onChange={e => setNewDays(e.target.value)} />
+          <input style={{ ...S.input, flex: 1 }} placeholder="報酬内容" value={newReward} onChange={e => setNewReward(e.target.value)} />
+          <button style={S.btnOutline} onClick={addReward}>追加</button>
         </div>
       </div>
     </div>
