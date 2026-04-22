@@ -12,7 +12,7 @@ const ENVIRONMENTS = [
   { id: "home2", label: "家(モード2)", icon: "🏠", cost: "0円", hours: "いつでも", access: "家",
     permitted: ["趣味", "ゲーム"],
     gray: [],
-    notes: "特になし",
+    notes: "趣味としてやっていいのは安定型(読書、競プロなど)のみ。",
     担当: "趣味、ゲーム" },
   { id: "home3", label: "家(モード3)", icon: "🏠", cost: "0円", hours: "いつでも", access: "家",
     permitted: ["勉強", "仕事", "趣味", "ゲーム", "漫画", "Youtube"],
