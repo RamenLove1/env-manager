@@ -147,32 +147,9 @@ const RESET_RULES = [
 ];
 
 const DEFAULT_PERIOD_RULES = [
-  {
-    id: 1, label: "初週", startDate: "2026-04-06", endDate: "2026-04-12",
-    guidelines: { "勉強": "5h", "仕事": "2h30m", "趣味": "2h", "リラックス": "1h30m" },
-    choices: [
-      "大学(モード1)で勉強",
-      "オフィスで仕事",
-      "快活クラブ(モード1)で漫画勉強",
-      "スターバックスで勉強",
-      "SHARE LOUNGE(モード1)で勉強",
-    ],
-    rules: [
-      { text: "1h勉強または仕事をするごとに、0時までに就寝するごとに、家(モード2)の許可を10m貯蔵できる。", envIds: ["home2"], storageTag: "home2" },
-      { text: "1h勉強または仕事をするごとに、快活クラブ(モード2)の許可を10m貯蔵できる。", envIds: ["kaikatsu2"], storageTag: "kaikatsu2" },
-      R("その日の大学の授業をすべて受けて帰ってきて、家(モード2)の許可が2h以上あれば、それを使用できる。", ["univ1","univ2","home2"]),
-      R("大学(モード2)は許可しない。", ["univ2"]),
-      R("SHARE LOUNGE(モード2)は月に一度まで。", ["share2"]),
-      R("10時までに外での用事がある場合、快活クラブ(モード3)を外出誘発用に許可する。", ["kaikatsu3"]),
-    ],
-    effects: [
-      { envId: "home2", type: "storage_threshold", storageKey: "home2", threshold: 120, label: "家(モード2)貯蔵 2h以上で開始可能" },
-      { envId: "jikka2", type: "storage_threshold", storageKey: "home2", threshold: 120, label: "家(モード2)貯蔵 2h以上で開始可能" },
-      { envId: "kaikatsu2", type: "storage_threshold", storageKey: "kaikatsu2", threshold: 1, label: "快活クラブ(モード2)貯蔵 1m以上で開始可能" },
-      { envId: "univ2", type: "denied" },
-      { envId: "share2", type: "count_limit", storageKey: "share2_count", limit: 1, label: "SHARE LOUNGE(モード2)回数 1回まで" },
-    ],
-  },
+  // 初めて開いたユーザーは期間別規程なしでスタート。
+  // 例: { id: 1, label: "タイトル", startDate: "YYYY-MM-DD", endDate: "YYYY-MM-DD",
+  //       guidelines: {}, choices: [], rules: [], effects: [] }
 ];
 
 const DEFAULT_CONTROL_RULES = [
@@ -206,13 +183,69 @@ const DEFAULT_DYN = {
   streak: 0, streakRewards: [],
   periodRules: DEFAULT_PERIOD_RULES,
   controlRules: DEFAULT_CONTROL_RULES,
+  // 記録フィールド定義（ユーザーが追加・削除・リネーム可能）
+  // category: "activity"（活動記録）| "storage"（貯蔵ポイント）| "count"（利用回数）
+  // unit: "min" | "count"（categoryから一意に決まる: countのみ "count"、他は "min"）
+  // id は一度生成したら変更しないこと（effect や rule.storageTag から参照されるため）
+  storageKeys: [
+    { id: "act_1", category: "activity", label: "活動1", unit: "min" },
+    { id: "sto_1", category: "storage",  label: "貯蔵1", unit: "min" },
+    { id: "cnt_1", category: "count",    label: "利用回数1", unit: "count" },
+  ],
 };
 
+// =============================================
+// localStorage 永続化
+// =============================================
+// ⚠️ 重要：このキー名は絶対に変更しないこと ⚠️
+//
+// 過去に "env-mgr-dyn-v9" のようにバージョン番号を含めていたが、
+// バージョン番号を上げるとユーザーの全データ（違反履歴、記録、編集したルール等）が
+// 消えるため、バージョン管理は完全に廃止した。
+//
+// 今後スキーマを拡張する場合は、必ず以下の方針を守ること：
+//   1. このキー名 "env-mgr-dyn" は変更しない（"-v10" 等を付けない）
+//   2. DEFAULT_DYN に新フィールドを追加するだけでよい
+//      → mergeWithDefaults が自動で既存ユーザーに初期値を補完する
+//   3. フィールドを削除する場合も、savedに残っていても害がないため放置してよい
+//      （mergeWithDefaults は saved にある未知キーを保持する）
+//   4. 「バージョンごとの移行コード」も書かないこと
+//      （スキーマ差分はすべて mergeWithDefaults + アプリ側の `|| 0` / `|| []` で吸収する）
+const STORAGE_KEY = "env-mgr-dyn";
+
 function loadDyn() {
-  try { const r = localStorage.getItem("env-mgr-dyn-v9"); return r ? JSON.parse(r) : null; } catch { return null; }
+  try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : null; } catch { return null; }
 }
 function saveDyn(d) {
-  try { localStorage.setItem("env-mgr-dyn-v9", JSON.stringify(d)); } catch {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch {}
+}
+
+// 深いマージ: defaults をベースに、saved の値で上書き
+// このロジックにより、DEFAULT_DYN に新フィールドを追加するだけで
+// 既存ユーザーのデータにも自動的に初期値が補完される（移行コード不要）。
+//
+// - plain object は再帰的にマージ（defaults にあって saved にないキーは defaults から補完）
+// - 配列とプリミティブは saved を優先
+// - saved の値が null/undefined の場合は defaults の値を使う（defaults 側も null なら null）
+function isPlainObject(v) {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+function mergeWithDefaults(saved, defaults) {
+  if (saved === undefined || saved === null) return defaults;
+  if (!isPlainObject(saved) || !isPlainObject(defaults)) return saved;
+  const result = { ...defaults };
+  for (const key of Object.keys(saved)) {
+    const s = saved[key];
+    const d = defaults[key];
+    if (s === null || s === undefined) {
+      result[key] = d !== undefined ? d : s;
+    } else if (isPlainObject(s) && isPlainObject(d)) {
+      result[key] = mergeWithDefaults(s, d);
+    } else {
+      result[key] = s;
+    }
+  }
+  return result;
 }
 
 // =============================================
@@ -253,13 +286,16 @@ function periodDisplayLabel(p) {
   return range ? `${range} ${p.label}` : p.label;
 }
 
-// 記録キー定義
-const STORAGE_KEYS = [
-  { key: "home2", label: "家(モード2) 貯蔵", unit: "min" },
-  { key: "kaikatsu2", label: "快活クラブ(モード2) 貯蔵", unit: "min" },
-  { key: "share2_count", label: "SHARE LOUNGE(モード2) 回数", unit: "count" },
-  { key: "study_mins", label: "勉強 合計時間", unit: "min" },
-  { key: "work_mins", label: "仕事 合計時間", unit: "min" },
+// ユニークなID生成（記録フィールドの追加時に使用）
+function genStorageKeyId() {
+  return "sk_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+// カテゴリ定義
+const STORAGE_CATEGORIES = [
+  { id: "activity", label: "活動記録", unit: "min", defaultLabel: "活動", color: "accent" },
+  { id: "storage",  label: "貯蔵ポイント", unit: "min", defaultLabel: "貯蔵", color: "green" },
+  { id: "count",    label: "利用回数", unit: "count", defaultLabel: "利用回数", color: "yellow" },
 ];
 
 // アクティブな期間から特定storageKeyにタグ付けされたルールを収集
@@ -279,7 +315,7 @@ function collectStorageRules(dyn, storageKey) {
 }
 
 // effectを解決して表示用データを返す
-function resolveEffect(eff, storage, source, periodStartDate) {
+function resolveEffect(eff, storage, storageKeys, source, periodStartDate) {
   const base = { envId: eff.envId, type: eff.type, source };
   if (eff.type === "denied") {
     return { ...base, blocked: true, color: "red", icon: "🚫", text: "不許可" };
@@ -293,7 +329,7 @@ function resolveEffect(eff, storage, source, periodStartDate) {
   }
   if (eff.type === "storage_threshold") {
     const current = storage[eff.storageKey] || 0;
-    const sk = STORAGE_KEYS.find(s => s.key === eff.storageKey);
+    const sk = storageKeys.find(s => s.id === eff.storageKey);
     const met = current >= eff.threshold;
     const curStr = sk?.unit === "min" ? fmtTime(current) : `${current}`;
     const thrStr = sk?.unit === "min" ? fmtTime(eff.threshold) : `${eff.threshold}`;
@@ -305,7 +341,7 @@ function resolveEffect(eff, storage, source, periodStartDate) {
     // n分の記録値があるとき、24時までk*n分であれば許可
     // → 必要値 = (24 - 現在時) * 60 / k
     const current = storage[eff.storageKey] || 0;
-    const sk = STORAGE_KEYS.find(s => s.key === eff.storageKey);
+    const sk = storageKeys.find(s => s.id === eff.storageKey);
     const now = new Date();
     const h = now.getHours() + now.getMinutes() / 60;
     const remaining = Math.max(0, (24 - h) * 60);
@@ -321,7 +357,7 @@ function resolveEffect(eff, storage, source, periodStartDate) {
     // 期間のn日目においてk*n時間の記録値があれば許可
     // → 必要値 = k * dayNum * 60 (分)
     const current = storage[eff.storageKey] || 0;
-    const sk = STORAGE_KEYS.find(s => s.key === eff.storageKey);
+    const sk = storageKeys.find(s => s.id === eff.storageKey);
     let dayNum = 1;
     if (periodStartDate) {
       const start = new Date(periodStartDate + "T00:00:00");
@@ -345,10 +381,11 @@ function resolveEffect(eff, storage, source, periodStartDate) {
 function collectEffects(dyn) {
   const map = {};
   const st = dyn.storage || {};
+  const sks = dyn.storageKeys || [];
   const add = (eff, source, startDate) => {
     if (!eff.envId) return;
     if (!map[eff.envId]) map[eff.envId] = [];
-    map[eff.envId].push(resolveEffect(eff, st, source, startDate));
+    map[eff.envId].push(resolveEffect(eff, st, sks, source, startDate));
   };
   (dyn.periodRules || []).filter(isPeriodActive).forEach(p => (p.effects || []).forEach(e => add(e, `📅${periodDisplayLabel(p)}`, p.startDate)));
   (dyn.controlRules || []).filter(isPeriodActive).forEach(p => (p.effects || []).forEach(e => add(e, `🔧${periodDisplayLabel(p)}`, p.startDate)));
@@ -617,11 +654,62 @@ function HomeTab({ dyn, setDyn }) {
 // =============================================
 // 記録タブ
 // =============================================
-function TimeCard({ id, label, color, steps, mins, onAdjust, editTarget, amount, setAmount, onSetDirect, onStartEdit, onCancelEdit, storageRules }) {
+function TimeCard({ id, label, unit, color, mins, storageRules,
+                   editTarget, amount, setAmount, onAdjust, onSetDirect, onStartEdit, onCancelEdit,
+                   onRename, onDelete }) {
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [labelDraft, setLabelDraft] = useState(label);
+  const [confirmDel, setConfirmDel] = useState(false);
+
+  const steps = unit === "count" ? [-1, 1] : [-60, -10, 10, 60];
+  const display = unit === "count" ? `${mins}回` : fmtTime(mins);
+  const inputLabel = unit === "count" ? "回数" : "分";
+  const stepLabel = (s) => {
+    if (unit === "count") return s > 0 ? `+${s}` : `${s}`;
+    return `${s > 0 ? "+" : ""}${Math.abs(s) >= 60 ? `${s/60}h` : `${s}m`}`;
+  };
+
+  const saveLabel = () => {
+    const t = labelDraft.trim();
+    if (t) onRename(id, t);
+    setEditingLabel(false);
+  };
+
   return (
     <div style={S.card}>
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 700, color: mins > 0 ? color : C.textDim }}>{fmtTime(mins)}</div>
+      {!editingLabel ? (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 6 }}>
+          <div style={{ fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+          <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+            <button style={{ background: "none", border: "none", color: C.accent, fontSize: 13, cursor: "pointer", padding: "2px 6px" }}
+                    onClick={() => { setLabelDraft(label); setEditingLabel(true); }}>✎</button>
+            <button style={{ background: "none", border: "none", color: C.red, fontSize: 13, cursor: "pointer", padding: "2px 6px" }}
+                    onClick={() => setConfirmDel(true)}>×</button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+          <input style={{ ...S.input, flex: 1 }} value={labelDraft} onChange={e => setLabelDraft(e.target.value)} autoFocus />
+          <button style={S.btnSm()} onClick={saveLabel}>保存</button>
+          <button style={S.btnSm(C.textDim)} onClick={() => setEditingLabel(false)}>×</button>
+        </div>
+      )}
+
+      {confirmDel && (
+        <div style={{ background: C.redDim, borderRadius: 8, padding: "10px 12px", marginBottom: 10 }}>
+          <div style={{ fontSize: 12, color: C.red, marginBottom: 6, fontWeight: 600 }}>「{label}」を削除しますか？</div>
+          <div style={{ fontSize: 11, color: C.textDim, marginBottom: 8, lineHeight: 1.5 }}>
+            蓄積された記録値は失われます。規程でこのフィールドを参照している場合、その箇所は「(削除済み)」表示になります。
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={S.btnSm(C.red)} onClick={() => { onDelete(id); setConfirmDel(false); }}>削除する</button>
+            <button style={S.btnSm(C.textDim)} onClick={() => setConfirmDel(false)}>やめる</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ fontSize: 28, fontWeight: 700, color: mins > 0 ? color : C.textDim }}>{display}</div>
+
       {storageRules && storageRules.length > 0 && (
         <div style={{ marginTop: 6, padding: "6px 8px", borderRadius: 6, background: C.bg, border: `1px solid ${C.border}` }}>
           {storageRules.map((r, i) => (
@@ -632,12 +720,13 @@ function TimeCard({ id, label, color, steps, mins, onAdjust, editTarget, amount,
           ))}
         </div>
       )}
+
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-        {steps.map(s => <button key={s} style={{ ...S.btnOutline, flex: 1 }} onClick={() => onAdjust(id, s)}>{s > 0 ? "+" : ""}{Math.abs(s) >= 60 ? `${s/60}h` : `${s}m`}</button>)}
+        {steps.map(s => <button key={s} style={{ ...S.btnOutline, flex: 1 }} onClick={() => onAdjust(id, s)}>{stepLabel(s)}</button>)}
       </div>
       {editTarget === id ? (
         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-          <input style={{ ...S.input, flex: 1 }} type="number" placeholder="分" value={amount} onChange={e => setAmount(e.target.value)} />
+          <input style={{ ...S.input, flex: 1 }} type="number" placeholder={inputLabel} value={amount} onChange={e => setAmount(e.target.value)} />
           <button style={S.btnOutline} onClick={() => onSetDirect(id)}>設定</button>
           <button style={{ ...S.btnOutline, color: C.textDim, borderColor: C.textDim }} onClick={onCancelEdit}>×</button>
         </div>
@@ -649,43 +738,75 @@ function TimeCard({ id, label, color, steps, mins, onAdjust, editTarget, amount,
 function StorageTab({ dyn, setDyn }) {
   const [editTarget, setEditTarget] = useState(null);
   const [amount, setAmount] = useState("");
-  const st = dyn.storage;
+  const st = dyn.storage || {};
+  const storageKeys = dyn.storageKeys || [];
+
   const upd = (key, val) => { const n = { ...dyn, storage: { ...st, [key]: val } }; setDyn(n); saveDyn(n); };
   const adjust = (key, d) => upd(key, Math.max(0, (st[key] || 0) + d));
   const setDirect = (key) => { const v = parseInt(amount); if (isNaN(v)) return; upd(key, Math.max(0, v)); setEditTarget(null); setAmount(""); };
   const startEdit = (id) => { setEditTarget(id); setAmount(String(st[id] || 0)); };
   const cancelEdit = () => setEditTarget(null);
 
-  const tcProps = { editTarget, amount, setAmount, onAdjust: adjust, onSetDirect: setDirect, onStartEdit: startEdit, onCancelEdit: cancelEdit };
+  // フィールド名の変更
+  const renameKey = (id, newLabel) => {
+    const newKeys = storageKeys.map(s => s.id === id ? { ...s, label: newLabel } : s);
+    const n = { ...dyn, storageKeys: newKeys }; setDyn(n); saveDyn(n);
+  };
+
+  // フィールドの削除（記録値も一緒に削除）
+  const deleteKey = (id) => {
+    const newKeys = storageKeys.filter(s => s.id !== id);
+    const newStorage = { ...st };
+    delete newStorage[id];
+    const n = { ...dyn, storageKeys: newKeys, storage: newStorage };
+    setDyn(n); saveDyn(n);
+  };
+
+  // フィールドの新規追加
+  const addKey = (category) => {
+    const cat = STORAGE_CATEGORIES.find(c => c.id === category);
+    if (!cat) return;
+    const existingCount = storageKeys.filter(s => s.category === category).length;
+    const newKey = { id: genStorageKeyId(), category, unit: cat.unit, label: `${cat.defaultLabel}${existingCount + 1}` };
+    const n = { ...dyn, storageKeys: [...storageKeys, newKey] }; setDyn(n); saveDyn(n);
+  };
+
+  const tcProps = { editTarget, amount, setAmount, onAdjust: adjust, onSetDirect: setDirect, onStartEdit: startEdit, onCancelEdit: cancelEdit, onRename: renameKey, onDelete: deleteKey };
+
+  const colorFor = (catId) => catId === "activity" ? C.accent : catId === "storage" ? C.green : C.yellow;
 
   return (
     <div>
       <div style={S.header}>記録・貯蔵管理</div>
-      <div style={S.section}>活動記録</div>
-      <TimeCard id="study_mins" label="勉強 合計時間" color={C.accent} steps={[-60, -10, 10, 60]} mins={st.study_mins || 0} storageRules={collectStorageRules(dyn, "study_mins")} {...tcProps} />
-      <TimeCard id="work_mins" label="仕事 合計時間" color={C.accent} steps={[-60, -10, 10, 60]} mins={st.work_mins || 0} storageRules={collectStorageRules(dyn, "work_mins")} {...tcProps} />
-      <div style={S.section}>貯蔵ポイント</div>
-      <TimeCard id="home2" label="家(モード2) 貯蔵" color={C.green} steps={[-60, -10, 10, 60]} mins={st.home2 || 0} storageRules={collectStorageRules(dyn, "home2")} {...tcProps} />
-      <TimeCard id="kaikatsu2" label="快活クラブ(モード2) 貯蔵" color={C.green} steps={[-60, -10, 10, 60]} mins={st.kaikatsu2 || 0} storageRules={collectStorageRules(dyn, "kaikatsu2")} {...tcProps} />
-      <div style={S.section}>利用回数</div>
-      <div style={S.card}>
-        <div style={{ fontWeight: 600, marginBottom: 8 }}>SHARE LOUNGE(モード2) 使用回数</div>
-        <div style={{ fontSize: 28, fontWeight: 700, color: (st.share2_count || 0) > 0 ? C.yellow : C.textDim }}>{st.share2_count || 0}回</div>
-        {(() => { const sr = collectStorageRules(dyn, "share2_count"); return sr.length > 0 && (
-          <div style={{ marginTop: 6, padding: "6px 8px", borderRadius: 6, background: C.bg, border: `1px solid ${C.border}` }}>
-            {sr.map((r, i) => (
-              <div key={i} style={{ fontSize: 11, color: C.text, lineHeight: 1.5, padding: "2px 0" }}>
-                {r.text}
-                <span style={{ color: C.textDim, fontSize: 10, marginLeft: 4 }}>({r.source})</span>
+
+      {STORAGE_CATEGORIES.map(cat => {
+        const keys = storageKeys.filter(s => s.category === cat.id);
+        return (
+          <div key={cat.id}>
+            <div style={S.section}>{cat.label}</div>
+            {keys.length === 0 && (
+              <div style={{ ...S.card, color: C.textDim, fontSize: 12, textAlign: "center", padding: "10px 16px" }}>
+                （このカテゴリにはフィールドがありません）
               </div>
+            )}
+            {keys.map(k => (
+              <TimeCard
+                key={k.id}
+                id={k.id}
+                label={k.label}
+                unit={k.unit}
+                color={colorFor(cat.id)}
+                mins={st[k.id] || 0}
+                storageRules={collectStorageRules(dyn, k.id)}
+                {...tcProps}
+              />
             ))}
+            <div style={{ padding: "0 12px", marginBottom: 4 }}>
+              <button style={{ ...S.btnOutline, width: "100%" }} onClick={() => addKey(cat.id)}>＋ {cat.label}を追加</button>
+            </div>
           </div>
-        ); })()}
-        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <button style={{ ...S.btnOutline, flex: 1 }} onClick={() => adjust("share2_count", -1)}>-1</button>
-          <button style={{ ...S.btnOutline, flex: 1 }} onClick={() => adjust("share2_count", 1)}>+1</button>
-        </div>
-      </div>
+        );
+      })}
 
       <div style={S.section}>無違反連続日数</div>
       <StreakCard dyn={dyn} setDyn={setDyn} />
@@ -934,7 +1055,7 @@ function ViolationTab({ dyn, setDyn }) {
 // =============================================
 // 編集可能な条文リスト
 // =============================================
-function EditableRuleList({ rules, onUpdate, filterEnvId }) {
+function EditableRuleList({ rules, onUpdate, filterEnvId, storageKeys = [] }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [draftEnvIds, setDraftEnvIds] = useState([]);
@@ -978,14 +1099,14 @@ function EditableRuleList({ rules, onUpdate, filterEnvId }) {
 
   const StorageTagBadge = ({ tag }) => {
     if (!tag) return null;
-    const sk = STORAGE_KEYS.find(s => s.key === tag);
-    return <span style={{ display: "inline-block", padding: "1px 6px", borderRadius: 4, fontSize: 10, background: C.accentDim, color: C.accent, marginLeft: 4 }}>📊 {sk?.label || tag}</span>;
+    const sk = storageKeys.find(s => s.id === tag);
+    return <span style={{ display: "inline-block", padding: "1px 6px", borderRadius: 4, fontSize: 10, background: C.accentDim, color: C.accent, marginLeft: 4 }}>📊 {sk?.label || `(削除済: ${tag})`}</span>;
   };
 
   const StorageTagSelect = ({ value, onChange }) => (
     <select style={{ ...S.input, fontSize: 11, marginTop: 4 }} value={value} onChange={e => onChange(e.target.value)}>
       <option value="">記録タグなし</option>
-      {STORAGE_KEYS.map(s => <option key={s.key} value={s.key}>📊 {s.label}</option>)}
+      {storageKeys.map(s => <option key={s.id} value={s.id}>📊 {s.label}</option>)}
     </select>
   );
 
@@ -1070,7 +1191,7 @@ const EFFECT_TYPES = [
   { id: "period_day_ratio", label: "📆 記録値で許可（日数比率）" },
 ];
 
-function EffectsEditor({ effects = [], onUpdate }) {
+function EffectsEditor({ effects = [], onUpdate, storageKeys = [] }) {
   const [editing, setEditing] = useState(false);
   const [newType, setNewType] = useState("denied");
   const [newEnv, setNewEnv] = useState("");
@@ -1085,19 +1206,19 @@ function EffectsEditor({ effects = [], onUpdate }) {
       // no extra fields
     } else if (newType === "count_limit") {
       if (!newKey || !newNum) return;
-      const skLabel = STORAGE_KEYS.find(s => s.key === newKey)?.label || newKey;
+      const skLabel = storageKeys.find(s => s.id === newKey)?.label || newKey;
       eff.storageKey = newKey; eff.limit = parseInt(newNum) || 1; eff.label = newLabel || `${skLabel} ${parseInt(newNum)}回まで`;
     } else if (newType === "storage_threshold") {
       if (!newKey || !newNum) return;
-      const skLabel = STORAGE_KEYS.find(s => s.key === newKey)?.label || newKey;
+      const skLabel = storageKeys.find(s => s.id === newKey)?.label || newKey;
       eff.storageKey = newKey; eff.threshold = parseInt(newNum) || 0; eff.label = newLabel || `${skLabel} ${fmtTime(parseInt(newNum))}以上で開始可能`;
     } else if (newType === "time_ratio") {
       if (!newKey || !newNum) return;
-      const skLabel = STORAGE_KEYS.find(s => s.key === newKey)?.label || newKey;
+      const skLabel = storageKeys.find(s => s.id === newKey)?.label || newKey;
       eff.storageKey = newKey; eff.k = parseFloat(newNum) || 2; eff.label = newLabel || `${skLabel} 24時まで k=${newNum} で許可`;
     } else if (newType === "period_day_ratio") {
       if (!newKey || !newNum) return;
-      const skLabel = STORAGE_KEYS.find(s => s.key === newKey)?.label || newKey;
+      const skLabel = storageKeys.find(s => s.id === newKey)?.label || newKey;
       eff.storageKey = newKey; eff.k = parseFloat(newNum) || 1; eff.label = newLabel || `${skLabel} n日目に${newNum}×n時間で許可`;
     }
     onUpdate([...effects, eff]);
@@ -1108,21 +1229,21 @@ function EffectsEditor({ effects = [], onUpdate }) {
   const describeEffect = (eff) => {
     if (eff.type === "denied") return "不許可";
     if (eff.type === "count_limit") {
-      const sk = STORAGE_KEYS.find(s => s.key === eff.storageKey);
-      return `回数制限: ${eff.label}（${sk?.label || eff.storageKey} ≤ ${eff.limit}）`;
+      const sk = storageKeys.find(s => s.id === eff.storageKey);
+      return `回数制限: ${eff.label}（${sk?.label || `(削除済: ${eff.storageKey})`} ≤ ${eff.limit}）`;
     }
     if (eff.type === "storage_threshold") {
-      const sk = STORAGE_KEYS.find(s => s.key === eff.storageKey);
+      const sk = storageKeys.find(s => s.id === eff.storageKey);
       const thr = sk?.unit === "min" ? fmtTime(eff.threshold) : eff.threshold;
-      return `記録値で許可: ${eff.label}（${sk?.label || eff.storageKey} ≥ ${thr}）`;
+      return `記録値で許可: ${eff.label}（${sk?.label || `(削除済: ${eff.storageKey})`} ≥ ${thr}）`;
     }
     if (eff.type === "time_ratio") {
-      const sk = STORAGE_KEYS.find(s => s.key === eff.storageKey);
-      return `記録値(残り時間比率): ${eff.label}（${sk?.label || eff.storageKey}, k=${eff.k}）`;
+      const sk = storageKeys.find(s => s.id === eff.storageKey);
+      return `記録値(残り時間比率): ${eff.label}（${sk?.label || `(削除済: ${eff.storageKey})`}, k=${eff.k}）`;
     }
     if (eff.type === "period_day_ratio") {
-      const sk = STORAGE_KEYS.find(s => s.key === eff.storageKey);
-      return `記録値(日数比率): ${eff.label}（${sk?.label || eff.storageKey}, k=${eff.k}）`;
+      const sk = storageKeys.find(s => s.id === eff.storageKey);
+      return `記録値(日数比率): ${eff.label}（${sk?.label || `(削除済: ${eff.storageKey})`}, k=${eff.k}）`;
     }
     return `不明な影響タイプ`;
   };
@@ -1166,7 +1287,7 @@ function EffectsEditor({ effects = [], onUpdate }) {
         {(newType === "count_limit" || newType === "storage_threshold" || newType === "time_ratio" || newType === "period_day_ratio") && (
           <select style={{ ...S.input, marginBottom: 6 }} value={newKey} onChange={e => setNewKey(e.target.value)}>
             <option value="">参照する記録を選択</option>
-            {STORAGE_KEYS.filter(s => newType === "count_limit" ? s.unit === "count" : s.unit === "min").map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+            {storageKeys.filter(s => newType === "count_limit" ? s.unit === "count" : s.unit === "min").map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
         )}
         {newType === "count_limit" && (
@@ -1239,7 +1360,7 @@ function ChoicesEditor({ title, items = [], onUpdate }) {
 // =============================================
 // 期間ブロック
 // =============================================
-function PeriodBlock({ period, onUpdate, onDelete, filterEnvId, hasGuidelines }) {
+function PeriodBlock({ period, onUpdate, onDelete, filterEnvId, hasGuidelines, storageKeys = [] }) {
   const [open, setOpen] = useState(isPeriodActive(period));
   const [editMeta, setEditMeta] = useState(false);
   const [label, setLabel] = useState(period.label);
@@ -1281,9 +1402,9 @@ function PeriodBlock({ period, onUpdate, onDelete, filterEnvId, hasGuidelines })
             </div>
           )}
 
-          <EditableRuleList rules={period.rules || []} onUpdate={(rules) => onUpdate({ ...period, rules })} filterEnvId={filterEnvId} />
+          <EditableRuleList rules={period.rules || []} onUpdate={(rules) => onUpdate({ ...period, rules })} filterEnvId={filterEnvId} storageKeys={storageKeys} />
 
-          <EffectsEditor effects={period.effects || []} onUpdate={(effects) => onUpdate({ ...period, effects })} />
+          <EffectsEditor effects={period.effects || []} onUpdate={(effects) => onUpdate({ ...period, effects })} storageKeys={storageKeys} />
 
           {hasGuidelines && (
             <ChoicesEditor title="🚶 起床・外出後の選択肢" items={period.choices || []} onUpdate={(items) => onUpdate({ ...period, choices: items })} />
@@ -1371,7 +1492,7 @@ function RulesTab({ dyn, setDyn }) {
 
       <Toggle title="📅 期間別規程" defaultOpen={true}>
         {dyn.periodRules.map((p, i) => (
-          <PeriodBlock key={p.id} period={p} onUpdate={(u) => updPeriod(i, u)} onDelete={() => delPeriod(i)} filterEnvId={filterEnvId} hasGuidelines={true} />
+          <PeriodBlock key={p.id} period={p} onUpdate={(u) => updPeriod(i, u)} onDelete={() => delPeriod(i)} filterEnvId={filterEnvId} hasGuidelines={true} storageKeys={dyn.storageKeys || []} />
         ))}
         {!showAddPeriod ? (
           <button style={{ ...S.btn(), marginTop: 10 }} onClick={() => setShowAddPeriod(true)}>＋ 期間を追加</button>
@@ -1396,7 +1517,7 @@ function RulesTab({ dyn, setDyn }) {
 
       <Toggle title="🔧 制御規定">
         {dyn.controlRules.map((p, i) => (
-          <PeriodBlock key={p.id} period={p} onUpdate={(u) => updControl(i, u)} onDelete={() => delControl(i)} filterEnvId={filterEnvId} hasGuidelines={false} />
+          <PeriodBlock key={p.id} period={p} onUpdate={(u) => updControl(i, u)} onDelete={() => delControl(i)} filterEnvId={filterEnvId} hasGuidelines={false} storageKeys={dyn.storageKeys || []} />
         ))}
         <button style={{ ...S.btn(), marginTop: 10 }} onClick={addControl}>＋ 期間を追加</button>
       </Toggle>
@@ -1423,8 +1544,11 @@ export default function App() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    // ⚠️ ここにスキーマ移行コードを書かないこと。
+    // 新フィールドの追加は DEFAULT_DYN に加えるだけで mergeWithDefaults が補完する。
+    // 詳しくは STORAGE_KEY 定義部のコメントを参照。
     const saved = loadDyn();
-    if (saved) setDyn({ ...DEFAULT_DYN, ...saved });
+    setDyn(mergeWithDefaults(saved, DEFAULT_DYN));
     setLoaded(true);
   }, []);
 
