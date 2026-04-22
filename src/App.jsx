@@ -941,12 +941,13 @@ function ViolationTab({ dyn, setDyn }) {
     });
     return latest;
   };
-  // youtube_pc, kaikatsu1_youtube → PC禁止, youtube_phone → スマホ禁止
+  // youtube_pc → PC禁止, youtube_phone → スマホ禁止
+  // （kaikatsu1_youtube は運用上 youtube_pc と同時に記録されるため、ここでは含めない）
   const pcBanEnd = (() => {
     let latest = null; const now = new Date();
     dyn.violations.forEach(v => {
       if (new Date(v.bannedUntil) < now) return;
-      if (v.type === "youtube_pc" || v.type === "kaikatsu1_youtube") {
+      if (v.type === "youtube_pc") {
         const d = new Date(v.bannedUntil); if (!latest || d > latest) latest = d;
       }
     });
