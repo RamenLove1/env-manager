@@ -184,7 +184,7 @@ const DEFAULT_DYN = {
   periodRules: DEFAULT_PERIOD_RULES,
   controlRules: DEFAULT_CONTROL_RULES,
   // 記録フィールド定義（ユーザーが追加・削除・リネーム可能）
-  // category: "activity"（活動記録）| "storage"（貯蔵ポイント）| "count"（利用回数）
+  // category: "activity"（活動記録）| "storage"（貯蔵時間）| "count"（利用回数）
   // unit: "min" | "count"（categoryから一意に決まる: countのみ "count"、他は "min"）
   // id は一度生成したら変更しないこと（effect や rule.storageTag から参照されるため）
   storageKeys: [
@@ -294,7 +294,7 @@ function genStorageKeyId() {
 // カテゴリ定義
 const STORAGE_CATEGORIES = [
   { id: "activity", label: "活動記録", unit: "min", defaultLabel: "活動", color: "accent" },
-  { id: "storage",  label: "貯蔵ポイント", unit: "min", defaultLabel: "貯蔵", color: "green" },
+  { id: "storage",  label: "貯蔵時間", unit: "min", defaultLabel: "貯蔵", color: "green" },
   { id: "count",    label: "利用回数", unit: "count", defaultLabel: "利用回数", color: "yellow" },
 ];
 
