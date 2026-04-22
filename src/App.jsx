@@ -1367,13 +1367,24 @@ function PeriodBlock({ period, onUpdate, onDelete, filterEnvId, hasGuidelines, s
   const [startDate, setStartDate] = useState(period.startDate || "");
   const [endDate, setEndDate] = useState(period.endDate || "");
   const [guidelines, setGuidelines] = useState(hasGuidelines ? JSON.stringify(period.guidelines || {}, null, 2) : "");
+  const [guidelineDetailsMap, setGuidelineDetailsMap] = useState(hasGuidelines ? (period.guidelineDetails || {}) : {});
+  const [guidelineListOpen, setGuidelineListOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const active = isPeriodActive(period);
 
   const saveMeta = () => {
     const upd = { ...period, label, startDate, endDate };
     if (hasGuidelines) {
-      try { upd.guidelines = JSON.parse(guidelines); } catch { alert("JSON形式が不正です"); return; }
+      let parsedGuidelines;
+      try { parsedGuidelines = JSON.parse(guidelines); } catch { alert("JSON形式が不正です"); return; }
+      upd.guidelines = parsedGuidelines;
+      // 内訳は guidelines の現キーに存在するもののみ保存
+      const filteredDetails = {};
+      Object.keys(parsedGuidelines).forEach(k => {
+        const v = guidelineDetailsMap[k];
+        if (v && v.trim()) filteredDetails[k] = v;
+      });
+      upd.guidelineDetails = filteredDetails;
     }
     onUpdate(upd);
     setEditMeta(false);
@@ -1399,6 +1410,33 @@ function PeriodBlock({ period, onUpdate, onDelete, filterEnvId, hasGuidelines, s
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {Object.entries(period.guidelines).map(([k, v]) => <span key={k} style={S.chip(true)}>{k}: {v}</span>)}
               </div>
+              <button
+                onClick={() => setGuidelineListOpen(!guidelineListOpen)}
+                style={{ marginTop: 8, width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, cursor: "pointer", fontSize: 11 }}
+              >
+                <span>📋 目安内訳</span>
+                <span style={{ color: C.textDim, fontSize: 12, transition: "transform 0.2s", transform: guidelineListOpen ? "rotate(180deg)" : "rotate(0)", display: "inline-block" }}>▾</span>
+              </button>
+              {guidelineListOpen && (
+                <div style={{ marginTop: 6, padding: "10px 12px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 6 }}>
+                  {Object.entries(period.guidelines).map(([k, v], idx, arr) => {
+                    const detail = (period.guidelineDetails || {})[k];
+                    const lines = detail ? detail.split("\n").map(l => l.trim()).filter(l => l) : [];
+                    return (
+                      <div key={k} style={{ paddingBottom: 8, marginBottom: 8, borderBottom: idx < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{k} <span style={{ color: C.accent }}>{v}</span></div>
+                        {lines.length > 0 ? (
+                          <div style={{ marginTop: 4, paddingLeft: 12, fontSize: 11, color: C.textDim, lineHeight: 1.6 }}>
+                            {lines.map((l, i) => <div key={i}>• {l}</div>)}
+                          </div>
+                        ) : (
+                          <div style={{ marginTop: 2, paddingLeft: 12, fontSize: 11, color: C.textDim }}>（内訳なし）</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -1413,7 +1451,7 @@ function PeriodBlock({ period, onUpdate, onDelete, filterEnvId, hasGuidelines, s
           <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 10, paddingTop: 8 }}>
             {!editMeta ? (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button style={S.btnSm()} onClick={() => { setLabel(period.label); setStartDate(period.startDate || ""); setEndDate(period.endDate || ""); if (hasGuidelines) setGuidelines(JSON.stringify(period.guidelines || {}, null, 2)); setEditMeta(true); }}>設定を編集</button>
+                <button style={S.btnSm()} onClick={() => { setLabel(period.label); setStartDate(period.startDate || ""); setEndDate(period.endDate || ""); if (hasGuidelines) { setGuidelines(JSON.stringify(period.guidelines || {}, null, 2)); setGuidelineDetailsMap(period.guidelineDetails || {}); } setEditMeta(true); }}>設定を編集</button>
                 {!confirmDel ? (
                   <button style={S.btnSm(C.red)} onClick={() => setConfirmDel(true)}>この期間を削除</button>
                 ) : (
@@ -1445,6 +1483,27 @@ function PeriodBlock({ period, onUpdate, onDelete, filterEnvId, hasGuidelines, s
                     <textarea style={{ ...S.input, height: 100, fontFamily: "monospace", fontSize: 12 }} value={guidelines} onChange={e => setGuidelines(e.target.value)} />
                   </div>
                 )}
+                {hasGuidelines && (() => {
+                  let currentKeys = [];
+                  try { currentKeys = Object.keys(JSON.parse(guidelines || "{}")); } catch {}
+                  if (currentKeys.length === 0) return null;
+                  return (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>各項目の内訳（1行1項目）</div>
+                      {currentKeys.map(k => (
+                        <div key={k} style={{ marginBottom: 6 }}>
+                          <div style={{ fontSize: 11, color: C.text, marginBottom: 2 }}>{k}</div>
+                          <textarea
+                            style={{ ...S.input, fontSize: 12, minHeight: 50 }}
+                            value={guidelineDetailsMap[k] || ""}
+                            onChange={e => setGuidelineDetailsMap({ ...guidelineDetailsMap, [k]: e.target.value })}
+                            placeholder={"例:\n数学 2h\n英語 3h"}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
                 <div style={{ display: "flex", gap: 8 }}>
                   <button style={S.btnSm()} onClick={saveMeta}>保存</button>
                   <button style={S.btnSm(C.textDim)} onClick={() => setEditMeta(false)}>取消</button>
@@ -1469,7 +1528,7 @@ function RulesTab({ dyn, setDyn }) {
   const addPeriod = (copyFrom) => {
     const base = copyFrom
       ? { ...JSON.parse(JSON.stringify(copyFrom)), id: Date.now(), label: copyFrom.label + "（コピー）", startDate: "", endDate: "" }
-      : { id: Date.now(), label: "新しい期間", startDate: "", endDate: "", guidelines: { "勉強": "5h", "仕事": "2h30m", "趣味": "2h", "リラックス": "1h30m" }, choices: [], rules: [], effects: [] };
+      : { id: Date.now(), label: "新しい期間", startDate: "", endDate: "", guidelines: { "勉強": "5h", "仕事": "2h30m", "趣味": "2h", "リラックス": "1h30m" }, guidelineDetails: {}, choices: [], rules: [], effects: [] };
     const n = { ...dyn, periodRules: [...dyn.periodRules, base] }; setDyn(n); saveDyn(n);
   };
   const [showAddPeriod, setShowAddPeriod] = useState(false);
