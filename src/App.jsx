@@ -13,7 +13,7 @@ const ENVIRONMENTS = [
     permitted: ["趣味", "ゲーム"],
     gray: [],
     notes: "趣味としてやっていいのは安定型(読書、競プロなど)のみ。",
-    担当: "趣味、ゲーム" },
+    担当: "趣味(安定型)、ゲーム" },
   { id: "home3", label: "家(モード3)", icon: "🏠", cost: "0円", hours: "いつでも", access: "家",
     permitted: ["勉強", "仕事", "趣味", "ゲーム", "漫画", "Youtube"],
     gray: ["勉強", "仕事"],
