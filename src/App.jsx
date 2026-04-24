@@ -88,7 +88,7 @@ const PLACES = [
   { key: "outside", label: "外", icon: "🚶", envIds: ["outside"], modeLabels: [] },
   { key: "univ", label: "大学", icon: "🎓", envIds: ["univ1","univ2"], modeLabels: ["モード1","モード2"] },
   { key: "office", label: "オフィス", icon: "🏢", envIds: ["office"], modeLabels: [] },
-  { key: "starbucks", label: "スターバックス", icon: "☕", envIds: ["starbucks"], modeLabels: [] },
+  { key: "starbucks", label: "作業可能飲食店", icon: "☕", envIds: ["starbucks"], modeLabels: [] },
   { key: "share", label: "SHARE LOUNGE", icon: "💼", envIds: ["share1","share2"], modeLabels: ["モード1","モード2"] },
   { key: "kaikatsu", label: "快活クラブ", icon: "📚", envIds: ["kaikatsu1","kaikatsu2","kaikatsu3"], modeLabels: ["モード1","モード2","モード3"] },
   { key: "jikka", label: "実家系", icon: "🏡", envIds: ["jikka1","jikka2"], modeLabels: ["モード1","モード2"] },
