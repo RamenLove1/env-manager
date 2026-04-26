@@ -972,8 +972,12 @@ function ViolationTab({ dyn, setDyn }) {
     setShowForm(false); setSelEnv(""); setSelType("general"); setSelDate(getToday());
   };
   const remove = (vid) => { const n = { ...dyn, violations: dyn.violations.filter(v => v.id !== vid) }; setDyn(n); saveDyn(n); };
-  const active = dyn.violations.filter(v => new Date(v.bannedUntil) >= new Date());
-  const past = dyn.violations.filter(v => new Date(v.bannedUntil) < new Date()).slice(-10);
+  // 発生日の降順（新しいものが上）にソートしてからフィルタ。
+  // past は slice(0, 10) で最新10件のみ表示。
+  const now = new Date();
+  const sortedViolations = [...dyn.violations].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const active = sortedViolations.filter(v => new Date(v.bannedUntil) >= now);
+  const past = sortedViolations.filter(v => new Date(v.bannedUntil) < now).slice(0, 10);
 
   // デバイス禁止の期限を取得
   const getDeviceBanEnd = (type) => {
