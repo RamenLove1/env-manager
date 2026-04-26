@@ -877,9 +877,9 @@ function StreakCard({ dyn, setDyn }) {
       {nextReward && <div style={{ fontSize: 11, color: C.yellow, marginTop: 4 }}>次の報酬まであと {nextReward.days - streak}日（{nextReward.days}日目: {nextReward.reward}）</div>}
       {editStart ? (
         <div style={{ marginTop: 10 }}>
-          <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>連続開始日 (YYYY-MM-DD)</div>
+          <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>連続開始日</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <input style={{ ...S.input, flex: 1 }} value={startInput} onChange={e => setStartInput(e.target.value)} placeholder={todayDateStr()} />
+            <input type="date" style={{ ...S.input, flex: 1, colorScheme: "dark" }} value={startInput} onChange={e => setStartInput(e.target.value)} />
             <button style={S.btnOutline} onClick={setStart}>設定</button>
             <button style={{ ...S.btnOutline, color: C.textDim, borderColor: C.textDim }} onClick={() => { setEditStart(false); setStartInput(""); }}>×</button>
           </div>
@@ -1023,8 +1023,8 @@ function ViolationTab({ dyn, setDyn }) {
       ) : (
         <div style={S.card}>
           <div style={{ fontWeight: 600, marginBottom: 8 }}>違反の記録</div>
-          <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>発生日 (YYYY-MM-DD)</div>
-          <input type="text" style={{ ...S.input, marginBottom: 8 }} value={selDate} onChange={e => setSelDate(e.target.value)} placeholder="2026-04-08" />
+          <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>発生日</div>
+          <input type="date" style={{ ...S.input, marginBottom: 8, colorScheme: "dark" }} value={selDate} onChange={e => setSelDate(e.target.value)} />
           <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>違反種別</div>
           <select style={{ ...S.input, marginBottom: 8 }} value={selType} onChange={e => handleTypeChange(e.target.value)}>
             {vTypes.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
@@ -1517,12 +1517,12 @@ function PeriodBlock({ period, onUpdate, onDelete, filterEnvId, hasGuidelines, s
                 </div>
                 <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>開始日 (YYYY-MM-DD)</div>
-                    <input style={S.input} value={startDate} onChange={e => setStartDate(e.target.value)} placeholder="2026-04-06" />
+                    <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>開始日</div>
+                    <input type="date" style={{ ...S.input, colorScheme: "dark" }} value={startDate} onChange={e => setStartDate(e.target.value)} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>終了日 (YYYY-MM-DD)</div>
-                    <input style={S.input} value={endDate} onChange={e => setEndDate(e.target.value)} placeholder="2026-04-12" />
+                    <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>終了日</div>
+                    <input type="date" style={{ ...S.input, colorScheme: "dark" }} value={endDate} onChange={e => setEndDate(e.target.value)} />
                   </div>
                 </div>
                 {hasGuidelines && (
