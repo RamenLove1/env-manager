@@ -177,7 +177,7 @@ const RULE_SECTIONS = [
 // =============================================
 const DEFAULT_DYN = {
   currentEnv: null, violations: [], storage: {},
-  streak: 0, streakRewards: [],
+  streakStartDate: null, streakRewards: [],
   periodRules: DEFAULT_PERIOD_RULES,
   controlRules: DEFAULT_CONTROL_RULES,
   // 記録フィールド定義（ユーザーが追加・削除・リネーム可能）
@@ -270,6 +270,21 @@ function hasDeviceBan(violations) {
   return { pc, phone };
 }
 function fmtDate(d) { const dt = new Date(d); return `${dt.getMonth()+1}/${dt.getDate()}`; }
+// 連続開始日（YYYY-MM-DD）から、今日までの経過日数を返す。
+// 開始当日は 0、翌日は 1。未設定や未来日付の場合は 0。
+function calcStreakDays(startDate) {
+  if (!startDate) return 0;
+  const start = new Date(startDate + "T00:00:00");
+  if (isNaN(start.getTime())) return 0;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diff = Math.floor((today - start) / 86400000);
+  return Math.max(0, diff);
+}
+function todayDateStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
 function envLabel(id) { return ENVIRONMENTS.find(e => e.id === id)?.label || id; }
 function ruleMatch(rule, filt) { return !filt || rule.envIds.length === 0 || rule.envIds.includes(filt); }
 function fmtTime(mins) { const h = Math.floor(mins / 60); const m = mins % 60; return h > 0 ? `${h}h${m > 0 ? m + "m" : ""}` : `${m}m`; }
@@ -829,16 +844,24 @@ function StorageTab({ dyn, setDyn }) {
 }
 
 function StreakCard({ dyn, setDyn }) {
-  const [editDays, setEditDays] = useState(false);
-  const [daysInput, setDaysInput] = useState("");
+  const [editStart, setEditStart] = useState(false);
+  const [startInput, setStartInput] = useState("");
   const [newDays, setNewDays] = useState("");
   const [newReward, setNewReward] = useState("");
   const [confirmDel, setConfirmDel] = useState(null);
-  const streak = dyn.streak || 0;
+  const startDate = dyn.streakStartDate || null;
+  const streak = calcStreakDays(startDate);
   const rewards = dyn.streakRewards || [];
   const save = (n) => { setDyn(n); saveDyn(n); };
-  const adjust = (d) => save({ ...dyn, streak: Math.max(0, streak + d) });
-  const setDirect = () => { const v = parseInt(daysInput); if (isNaN(v)) return; save({ ...dyn, streak: Math.max(0, v) }); setEditDays(false); setDaysInput(""); };
+  const setStart = () => {
+    const v = startInput.trim();
+    if (!v) return;
+    const d = new Date(v + "T00:00:00");
+    if (isNaN(d.getTime())) { alert("日付の形式が不正です（YYYY-MM-DD）"); return; }
+    save({ ...dyn, streakStartDate: v }); setEditStart(false); setStartInput("");
+  };
+  const clearStart = () => { save({ ...dyn, streakStartDate: null }); setEditStart(false); setStartInput(""); };
+  const resetToToday = () => { save({ ...dyn, streakStartDate: todayDateStr() }); };
   const addReward = () => { if (!newDays.trim() || !newReward.trim()) return; const d = parseInt(newDays); if (isNaN(d) || d <= 0) return; save({ ...dyn, streakRewards: [...rewards, { days: d, reward: newReward.trim() }].sort((a, b) => a.days - b.days) }); setNewDays(""); setNewReward(""); };
   const delReward = (i) => { save({ ...dyn, streakRewards: rewards.filter((_, j) => j !== i) }); setConfirmDel(null); };
 
@@ -848,18 +871,28 @@ function StreakCard({ dyn, setDyn }) {
     <div style={S.card}>
       <div style={{ fontWeight: 600, marginBottom: 8 }}>🔥 無違反連続日数</div>
       <div style={{ fontSize: 28, fontWeight: 700, color: streak > 0 ? C.accent : C.textDim }}>{streak}日</div>
-      {nextReward && <div style={{ fontSize: 11, color: C.yellow, marginTop: 4 }}>次の報酬まであと {nextReward.days - streak}日（{nextReward.days}日目: {nextReward.reward}）</div>}
-      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-        <button style={{ ...S.btnOutline, flex: 1 }} onClick={() => adjust(-1)}>-1</button>
-        <button style={{ ...S.btnOutline, flex: 1 }} onClick={() => adjust(1)}>+1</button>
+      <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>
+        {startDate ? `${startDate} から` : "開始日が未設定です"}
       </div>
-      {editDays ? (
-        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-          <input style={{ ...S.input, flex: 1 }} type="number" placeholder="日数" value={daysInput} onChange={e => setDaysInput(e.target.value)} />
-          <button style={S.btnOutline} onClick={setDirect}>設定</button>
-          <button style={{ ...S.btnOutline, color: C.textDim, borderColor: C.textDim }} onClick={() => setEditDays(false)}>×</button>
+      {nextReward && <div style={{ fontSize: 11, color: C.yellow, marginTop: 4 }}>次の報酬まであと {nextReward.days - streak}日（{nextReward.days}日目: {nextReward.reward}）</div>}
+      {editStart ? (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>連続開始日 (YYYY-MM-DD)</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input style={{ ...S.input, flex: 1 }} value={startInput} onChange={e => setStartInput(e.target.value)} placeholder={todayDateStr()} />
+            <button style={S.btnOutline} onClick={setStart}>設定</button>
+            <button style={{ ...S.btnOutline, color: C.textDim, borderColor: C.textDim }} onClick={() => { setEditStart(false); setStartInput(""); }}>×</button>
+          </div>
+          {startDate && (
+            <button style={{ ...S.btnOutline, marginTop: 6, width: "100%", color: C.textDim, borderColor: C.textDim }} onClick={clearStart}>クリア（未設定にする）</button>
+          )}
         </div>
-      ) : <button style={{ ...S.btnOutline, marginTop: 8, width: "100%", textAlign: "center" }} onClick={() => { setEditDays(true); setDaysInput(String(streak)); }}>直接入力</button>}
+      ) : (
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <button style={{ ...S.btnOutline, flex: 1 }} onClick={() => { setEditStart(true); setStartInput(startDate || todayDateStr()); }}>開始日を編集</button>
+          <button style={{ ...S.btnOutline, flex: 1 }} onClick={resetToToday}>今日からリセット</button>
+        </div>
+      )}
 
       <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 12, paddingTop: 10 }}>
         <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>🎁 報酬設定</div>
