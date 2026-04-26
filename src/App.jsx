@@ -248,13 +248,20 @@ function mergeWithDefaults(saved, defaults) {
 // =============================================
 // ヘルパー
 // =============================================
+// 違反 v が指定された envId を禁止するかを判定。
+// no_mode_home（家(無モード)滞在）違反は home1 と home2 の両方を禁止する（home3=療養は対象外）。
+function violationBlocksEnv(v, envId) {
+  if (v.envId === "outside") return false;
+  if (v.type === "no_mode_home" && (envId === "home1" || envId === "home2")) return true;
+  return v.envId === envId;
+}
 function isBanned(envId, violations) {
   const now = new Date();
-  return violations.some(v => v.envId !== "outside" && v.envId === envId && new Date(v.bannedUntil) >= now);
+  return violations.some(v => new Date(v.bannedUntil) >= now && violationBlocksEnv(v, envId));
 }
 function getBanEnd(envId, violations) {
   let latest = null;
-  violations.forEach(v => { if (v.envId === envId && v.envId !== "outside") { const d = new Date(v.bannedUntil); if (!latest || d > latest) latest = d; } });
+  violations.forEach(v => { if (violationBlocksEnv(v, envId)) { const d = new Date(v.bannedUntil); if (!latest || d > latest) latest = d; } });
   return latest;
 }
 function hasDeviceBan(violations) {
@@ -512,7 +519,7 @@ function HomeTab({ dyn, setDyn }) {
                 <div style={{ marginTop: 8 }}>{cur.permitted.map(a => <span key={a} style={{ ...S.permitted, ...(graySet.has(a) ? { background: C.yellowDim, color: C.yellow } : {}) }}>{a}</span>)}</div>
                 {cur.担当 && <div style={{ color: C.yellow, fontSize: 12, marginTop: 6 }}>担当: {cur.担当}</div>}
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 8, fontSize: 11, color: C.textDim }}>
-                  <div>💰 {cur.cost}</div>
+                  <div style={{ whiteSpace: "pre-line" }}>💰 {cur.cost}</div>
                   <div>🕐 {cur.hours}</div>
                   <div>📍 {cur.access}</div>
                 </div>
@@ -551,11 +558,16 @@ function HomeTab({ dyn, setDyn }) {
               const allBanned = p.envIds.every(id => isBanned(id, violations));
               const allBlocked = p.envIds.every(id => isDenied(id) || isBanned(id, violations));
               const isCur = curPlace?.key === p.key;
+              const lockerRequired = (p.key === "home" || p.key === "kaikatsu");
+              const { pc, phone } = hasDeviceBan(violations);
+              const showLocker = lockerRequired && (pc || phone);
+              const lockerLabel = pc && phone ? "PC・スマホ" : pc ? "PC" : "スマホ";
               return (
                 <button key={p.key} onClick={() => { if (allBanned) return; setSelectedPlace(p); }}
                   style={{ background: isCur ? C.accentDim : C.bg, border: `1px solid ${isCur ? C.accent : allBlocked ? C.red+"44" : C.border}`, borderRadius: 10, padding: "14px 10px", cursor: allBanned ? "default" : "pointer", opacity: allBanned ? 0.4 : allBlocked ? 0.5 : 1, textAlign: "center", color: C.text }}>
                   <div style={{ fontSize: 22 }}>{p.icon}</div>
                   <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4 }}>{p.label}</div>
+                  {showLocker && <div style={{ fontSize: 10, color: C.red, marginTop: 4, lineHeight: 1.3 }}>⚠️ {lockerLabel}預け必要</div>}
                 </button>
               );
             })}
@@ -575,12 +587,17 @@ function HomeTab({ dyn, setDyn }) {
               const envEffects = effects[eid] || [];
               const blocked = banned || denied;
               const graySet = new Set(env.gray || []);
+              const lockerRequired = ["home1","home2","home3","kaikatsu1","kaikatsu2","kaikatsu3"].includes(eid);
+              const { pc, phone } = hasDeviceBan(violations);
+              const showLocker = lockerRequired && (pc || phone);
+              const lockerLabel = pc && phone ? "PC・スマホ" : pc ? "PC" : "スマホ";
               return (
                 <button key={eid} onClick={() => !blocked && setEnv(eid)}
                   style={{ background: isAct ? C.accentDim : C.bg, border: `1px solid ${isAct ? C.accent : blocked ? C.red+"44" : C.border}`, borderRadius: 10, padding: "12px 14px", cursor: blocked ? "default" : "pointer", opacity: blocked ? 0.5 : 1, textAlign: "left", color: C.text }}>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{selectedPlace.modeLabels[i] || env.label}</div>
                   <div style={{ marginTop: 6 }}>{env.permitted.map(a => <span key={a} style={{ ...S.permitted, ...(graySet.has(a) ? { background: C.yellowDim, color: C.yellow } : {}) }}>{a}</span>)}</div>
                   {env.担当 && <div style={{ color: C.yellow, fontSize: 11, marginTop: 4 }}>担当: {env.担当}</div>}
+                  {showLocker && <div style={{ color: C.red, fontSize: 11, marginTop: 4 }}>⚠️ {lockerLabel}持ち込み禁止（コインロッカーへ）</div>}
                   {envEffects.map((eff, ei) => <EffectBadge key={ei} effect={eff} />)}
                   {env.notes && env.notes !== "特になし" && (() => { const filtered = env.notes.split("\n").filter(l => !l.startsWith("推定努力密度") && !l.startsWith("月間利用料目安")).join("\n").trim(); return filtered ? <div style={{ color: C.textDim, fontSize: 11, marginTop: 4, whiteSpace: "pre-line" }}>{filtered}</div> : null; })()}
                   {banned && <div style={{ color: C.red, fontSize: 11, marginTop: 4 }}>🚫 {fmtDate(banEnd)}まで使用禁止</div>}
