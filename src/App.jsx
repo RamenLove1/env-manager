@@ -249,12 +249,17 @@ function mergeWithDefaults(saved, defaults) {
 // ヘルパー
 // =============================================
 // 違反 v が指定された envId を禁止するかを判定。
-// no_mode_home（家(無モード)滞在）違反は home1 と home2 の両方を禁止する（home3=療養は対象外）。
+// - 違反の envId が "outside" または "home3" の場合は何も禁止しない（規定: 「家(モード3)、外をのぞく」）
+// - no_mode_home（家(無モード)滞在）違反は home1 と home2 の両方を禁止する
 function violationBlocksEnv(v, envId) {
-  if (v.envId === "outside") return false;
+  if (v.envId === "outside" || v.envId === "home3") return false;
   if (v.type === "no_mode_home" && (envId === "home1" || envId === "home2")) return true;
   return v.envId === envId;
 }
+// 規定: 「家(モード1)の使用を余儀なくされているときは、この限りではない」
+// home1 は ban 状態になっても選択は可能にする（「使用禁止中」バッジは出続ける）。
+// home3 は violationBlocksEnv 側で常に ban されないため、ここに含める必要はない。
+const BAN_SELECTABLE_ENVS = new Set(["home1"]);
 function isBanned(envId, violations) {
   const now = new Date();
   return violations.some(v => new Date(v.bannedUntil) >= now && violationBlocksEnv(v, envId));
@@ -570,8 +575,10 @@ function HomeTab({ dyn, setDyn }) {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             {PLACES.map(p => {
-              const allBanned = p.envIds.every(id => isBanned(id, violations));
-              const allBlocked = p.envIds.every(id => isDenied(id) || isBanned(id, violations));
+              // BAN_SELECTABLE_ENVS（home1, home3）は ban されていても選択可能なので、
+              // 全モードが操作不可のときだけ「allBanned/allBlocked」とみなす。
+              const allBanned = p.envIds.every(id => isBanned(id, violations) && !BAN_SELECTABLE_ENVS.has(id));
+              const allBlocked = p.envIds.every(id => isDenied(id) || (isBanned(id, violations) && !BAN_SELECTABLE_ENVS.has(id)));
               const isCur = curPlace?.key === p.key;
               const lockerRequired = (p.key === "home" || p.key === "kaikatsu");
               const { pc, phone } = hasDeviceBan(violations);
@@ -600,7 +607,9 @@ function HomeTab({ dyn, setDyn }) {
               const banned = isBanned(eid, violations); const banEnd = getBanEnd(eid, violations); const isAct = currentEnv === eid;
               const denied = isDenied(eid);
               const envEffects = effects[eid] || [];
-              const blocked = banned || denied;
+              // home1/home3 は ban されていても選択可（規定例外）。視覚的には ban 表示を残す。
+              const banSelectable = BAN_SELECTABLE_ENVS.has(eid);
+              const blocked = (banned && !banSelectable) || denied;
               const graySet = new Set(env.gray || []);
               const lockerRequired = ["home1","home2","home3","kaikatsu1","kaikatsu2","kaikatsu3"].includes(eid);
               const { pc, phone } = hasDeviceBan(violations);
