@@ -69,7 +69,7 @@ const ENVIRONMENTS = [
   { id: "kaikatsu3", label: "快活クラブ(モード3)", icon: "📚", cost: "平日: 1h600円/3h1200円/6h1700円/9h2200円/12h2600円/24h4500円/ナイト12h2200円\n休日: 1h600円/3h1400円/6h2000円/9h2500円/12h2900円/24h4800円", hours: "いつでも", access: "徒歩20分",
     permitted: ["ゲーム", "漫画", "Youtube"],
     gray: [],
-    notes: "1日1時間まで、漫画1巻または50分以内のYoutube動画1本のみ。\n月間利用料目安：12000円",
+    notes: "1日1時間まで、漫画1巻または50分以内のYoutube動画1本のみ。\nYoutubeを見た回で違反が起きた場合、Youtubeによる違反とする。\n月間利用料目安：12000円",
     担当: "外出誘発" },
   { id: "jikka1", label: "実家系(モード1)", icon: "🏡", cost: "0円", hours: "帰省時", access: "帰省時",
     permitted: ["勉強", "仕事"],
