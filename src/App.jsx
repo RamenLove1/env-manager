@@ -113,7 +113,7 @@ const BASIC_RULES_SUBS = [
   ]},
   { key: "schedule", title: "外出・就寝時間", rules: [
     R("外出が必要な日は、快活クラブ(モード3)を許可する。"),
-    R("大学やその他の予定がある日の前日は、準備+朝食+移動+快活クラブ(モード3)で計2h30mは使うことを想定し、さらにそこから移動する時間も考えて、6h30mは寝られるよう、前日の睡眠時刻を合わせる。特に、大学までの移動は最低30mとする。"),
+    R("大学やその他の予定がある日の前日は、準備+朝食+移動+快活クラブ(モード3)で計2h30mは使うことを想定し、さらにそこから移動する時間も考えて、6h30mは寝られるよう、睡眠時刻を合わせる。特に、大学までの移動は最低30mとする。"),
     R("大学やその他の予定がある日は、朝食30m(外出後の場合)+移動+快活クラブ(モード3)で計2hは使うことを想定し、さらにそこから移動する時間も考えて、十分早く外出する。特に、大学までの移動は最低30mとする。", ["home1","home2","home3"]),
     R("想定外の事態で上記の外出が間に合わない場合、できる限り早く外出し、朝食も抜く。それ以上の対応はしない。これによる遅れは違反とはしない。", ["home1","home2","home3"]),
   ]},
@@ -953,20 +953,18 @@ function ViolationTab({ dyn, setDyn }) {
     { id: "youtube_pc", label: "Youtube違反" },
     { id: "youtube_phone", label: "スマホでYoutube" },
     { id: "no_mode_home", label: "家(無モード)での滞在" },
-    { id: "kaikatsu1_youtube", label: "快活(モード1)でYoutube" },
   ];
 
   // 環境選択の制御
-  const envFixed = selType === "kaikatsu1_youtube" || selType === "no_mode_home";
+  const envFixed = selType === "no_mode_home";
   const getFixedEnv = (type) => {
-    if (type === "kaikatsu1_youtube") return "kaikatsu1";
     if (type === "no_mode_home") return "home1"; // 家(無モード)として記録
     return "";
   };
 
   const handleTypeChange = (type) => {
     setSelType(type);
-    if (type === "kaikatsu1_youtube" || type === "no_mode_home") {
+    if (type === "no_mode_home") {
       setSelEnv(getFixedEnv(type));
     }
   };
@@ -1003,7 +1001,6 @@ function ViolationTab({ dyn, setDyn }) {
     return latest;
   };
   // youtube_pc → PC禁止, youtube_phone → スマホ禁止
-  // （kaikatsu1_youtube は運用上 youtube_pc と同時に記録されるため、ここでは含めない）
   const pcBanEnd = (() => {
     let latest = null; const now = new Date();
     dyn.violations.forEach(v => {
@@ -1045,7 +1042,7 @@ function ViolationTab({ dyn, setDyn }) {
           </select>
           {envFixed ? (
             <div style={{ ...S.input, marginBottom: 8, color: C.textDim, background: C.bg }}>
-              {selType === "kaikatsu1_youtube" ? "快活クラブ(モード1)" : "家(無モード)"}
+              家(無モード)
             </div>
           ) : (
             <select style={{ ...S.input, marginBottom: 8 }} value={selEnv} onChange={e => setSelEnv(e.target.value)}>
