@@ -946,7 +946,7 @@ function ViolationTab({ dyn, setDyn }) {
   const vTypes = [
     { id: "general", label: "一般違反" },
     { id: "youtube_pc", label: "Youtube違反" },
-    { id: "youtube_phone", label: "スマホでYoutube" },
+    { id: "youtube_phone", label: "スマホでYoutube違反" },
     { id: "no_mode_home", label: "家(無モード)での滞在" },
   ];
 
